@@ -23,7 +23,7 @@ Language, framework, hardware and build tooling are not chosen. Do not pick them
 
 ## Commands
 
-None yet. Add build, test and run commands once the stack is chosen.
+Build: `cargo build --release`. Test: `cargo test`. Small run: `cargo run --release -- audit configs/small.conf 100`. Full run: `cargo run --release -- audit configs/local.conf 100`.
 
 ## Layout
 
@@ -32,6 +32,8 @@ None yet. Add build, test and run commands once the stack is chosen.
 | `README.md` | the idea, open questions, reporting rules, related work, decisions |
 | `AGENTS.md` | this file |
 | `CLAUDE.md` | imports this file |
+| `src/` | Rust baseline protocol and recomputation attack |
+| `configs/` | small and 1 GiB experiment parameters |
 
 Add a row for each top-level folder you create.
 

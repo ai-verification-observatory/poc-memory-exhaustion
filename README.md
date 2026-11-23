@@ -97,7 +97,7 @@ Every choice of stack, hardware and scope lands here, with its reason.
 
 | Date | Decision | Why |
 |---|---|---|
-| | | |
+| 2026-11-23 | Rust; 1 GiB host-RAM label state; full-reference verifier | Maintainer-selected local baseline before accelerator access. |
 
 ## Repository
 
@@ -108,3 +108,37 @@ No licence is chosen yet. The organisation's default is Apache-2.0 for code and 
 ## Contributing
 
 The most useful contributions right now are an attack on the mechanism, a reference we missed, or hardware we can run it on. [Open an issue](https://github.com/ai-verification-observatory/poc-memory-exhaustion/issues) with any of them.
+
+## Local Rust baseline
+
+The implemented baseline uses host RAM. It makes no adversarial occupancy claim.
+Four layers contain 32-byte SHA-256 labels. Parents come from the preceding layer.
+The verifier holds a full reference and compares every returned label and Merkle path.
+Seeds and challenge indices come from `/dev/urandom`. Integers use little-endian u64.
+Domain tags 1 through 5 distinguish parent selection, source labels, derived labels,
+Merkle leaves and internal nodes. Duplicate parents are allowed.
+
+```sh
+cargo test
+cargo run --release -- audit configs/small.conf 100
+cargo run --release -- audit configs/small.conf 50
+cargo run --release -- audit configs/local.conf 100
+```
+
+The local configuration allocates 1 GiB of prover labels. Each process additionally
+stores a Merkle tree of approximately twice the label-state size. The verifier
+also stores 1 GiB of reference labels. Budget approximately 6 GiB plus runtime
+and temporary allocations for the full local run. It has not been run here.
+The attack retains a prefix of labels and recursively recomputes missing labels.
+It retains the full Merkle tree, so its percentage is not total memory retained.
+The baseline therefore cannot establish a resident-byte lower bound.
+
+Timing uses Rust Instant, from challenge dispatch through complete response receipt.
+Deadlines classify completed responses; blocking I/O currently has no watchdog.
+Runs on the same host do not establish memory locality. No RSS or residency
+measurement is implemented. No hardware benchmark result is claimed.
+
+Outstanding work: exact tiny-graph pebbling search, compression and backing-store
+attacks, bounded read timeouts, malformed-input tests, experiment metadata and
+failure-record capture, and OS residency measurements. Helper relay is untested.
+A published lower-bound argument remains necessary before an occupancy claim.
