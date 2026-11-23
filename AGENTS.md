@@ -23,7 +23,7 @@ Language, framework, hardware and build tooling are not chosen. Do not pick them
 
 ## Commands
 
-Build: `cargo build --release`. Test: `cargo test`. Small run: `cargo run --release -- audit configs/small.conf 100`. Full run: `cargo run --release -- audit configs/local.conf 100`.
+Build: `cargo build --release`. Test: `cargo test`. Small run: `cargo run --release -- audit configs/small.conf 100`. Legacy full run: `cargo run --release -- audit configs/local.conf 100`. DRSample: `cargo run --release -- dr-run 4096`. Tiny exact solver: `cargo run --release -- dr-solve 6 3`.
 
 ## Layout
 

@@ -142,3 +142,57 @@ Outstanding work: exact tiny-graph pebbling search, compression and backing-stor
 attacks, bounded read timeouts, malformed-input tests, experiment metadata and
 failure-record capture, and OS residency measurements. Helper relay is untested.
 A published lower-bound argument remains necessary before an occupancy claim.
+
+## DRSample replacement status
+
+Branch `fix/retention-bound` preserves the original baseline in commit b4e3433.
+The replacement is incomplete. `src/pebble.rs` implements a sequential two-tier
+game, independent trace replay and bounded exact shortest-path search for at
+most 12 nodes. Red capacity includes a newly computed result alongside its
+parents. Stores and loads copy labels; deletion is free; recomputation is allowed.
+This convention is not asserted to match the published parallel-ROM reduction.
+Tests check a chain optimum, impossible capacity, invalid loads and search limits.
+
+### DRSample execution
+
+The local source PDF has SHA-256
+`f8e08d361118120c905550d3ac63efffe2a806d68276b070c24e7aa15d8fa8eb`.
+Algorithm 1 uses one-based vertices: vertex 1 is a source, vertex 2
+has parent 1. Later vertices have parent v-1 and v-r. Sample exponent
+uniformly from 1 through floor(log2(v))+1; set g=min(v-1,2^exponent).
+Sample integer r uniformly from max(ceil(g/2),2) through g, inclusive.
+Internally vertices are zero based and parent edges point toward children.
+This resolves the pseudocode's inconsistent edge orientation using its
+GetParent definition and initial chain edge.
+
+The sampler uses separate SHA-256 domains 40 and 41, a public 32-byte
+seed, zero-based u64 little-endian node index and rejection counter.
+Rejection sampling avoids modulo bias. It instantiates, rather than reproduces
+information-theoretically independent randomness. Label domain 42 hashes
+seed, node index and ordered parent-label concatenation. These 32-byte labels
+are a specified instantiation, not the practical Argon2 round function.
+
+```sh
+cargo run --release -- dr-run 4096
+cargo run --release -- dr-solve 6 3
+# Explicit full-label allocation: 1 GiB plus overhead, not yet run here.
+cargo run --release -- dr-run 33554432
+```
+
+`dr-run` computes the reference before spawning a fresh seeded worker.
+The reported interval includes process launch, graph generation and evaluation,
+output receipt and process exit. The reference allocation is released before
+worker launch. It then compares a sequential last-use greedy evaluator against
+the reference. Peak live-label bytes exclude HashMap allocation, keys, allocator
+capacity and node-index metadata; they are not measured resident memory.
+This greedy policy is not yet the full parallel greedy attack from the 2019 paper.
+`dr-solve` uses a fixed all-zero seed and costs compute=1, transfer=10;
+search stops after 100,000 expanded states and reports incomplete explicitly.
+
+Six tests currently cover SHA-256 abc, baseline reconstruction, graph parent
+boundaries, full/greedy agreement, trace replay, tiny optimum and capacity limits.
+The large budgeted executor, published parallel attack, compression/offload,
+timeouts, independent sampler oracle, complete SHA vectors, reproducibility
+capture, repetitions and 1 GiB run remain pending. The existing `audit` command
+still runs the weak baseline. No physical occupancy or bandwidth lower bound
+is claimed from these runs.
