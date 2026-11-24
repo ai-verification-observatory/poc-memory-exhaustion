@@ -84,6 +84,10 @@ The longer-term aim is to layer all three. So the challenge interface here stays
 |---|---|
 | SASH, [Exploring Memory Exhaustion as a Verification Approach](https://www.aisafety.sg/blog/exploring-memory-exhaustion-as-a-verification-approach) (October 2026) | The concept, the compressibility issue, timed challenges, and a list of open questions. |
 | Dziembowski, Faust, Kolmogorov, Pietrzak, [Proofs of Space](https://eprint.iacr.org/2013/796) (CRYPTO 2015) | Proving dedicated storage instead of computation, via graphs with high pebbling complexity. Written for disk space, not accelerator memory. |
+| Alwen, Blocki, Harsha, [Practical Graphs for Optimal Side-Channel Resistant Memory-Hard Functions](https://eprint.iacr.org/2017/443) (CCS 2017) | Introduces DRSample and aATSample. Algorithm 1 specifies the graph sampler used in this PoC. |
+| Ren, Devadas, [Bandwidth Hard Functions for ASIC Resistance](https://eprint.iacr.org/2017/225) (TCC 2017) | Introduces bandwidth hardness and uses red-blue pebbling to analyze computation and memory-transfer costs. Bandwidth hardness is distinct from capacity hardness. |
+| Blocki, Liu, Ren, Zhou, [Bandwidth-Hard Functions: Reductions and Lower Bounds](https://eprint.iacr.org/2018/221) (Journal of Cryptology 2024; extended CCS 2018 version) | Relates iMHF bandwidth cost to graph red-blue pebbling cost in the parallel random-oracle model. Analyzes DRSample and aATSample under stated parameter conditions; this does not by itself establish physical memory occupancy. |
+| Blocki, Harsha, Kang, Lee, Xing, Zhou, [Data-Independent Memory Hard Functions: New Attacks and Stronger Constructions](https://eprint.iacr.org/2018/944) (CRYPTO 2019) | Analyzes greedy attacks on DRSample and introduces DRSample+BRG with stronger sustained-space guarantees. Motivates testing attacks rather than inferring practical resistance from asymptotic bounds. |
 | Komargodski, Weinstein, [Proofs of Useful Work from Arbitrary Matrix Multiplication](https://arxiv.org/abs/2504.09971) | The compute-side counterpart. |
 | Monfared, Ganji, Holcomb, Tajik, [Timing and Memory Telemetry on GPUs for AI Governance](https://arxiv.org/abs/2602.09369) (February 2026) | Software-only, timing-based probes of a GPU, including a memory probe. |
 | Cankaya, [A system overview for near-term, low-trust AI compute verification](https://intelligence.org/wp-content/uploads/2026/06/A-system-overview-for-near-term-low-trust-AI-compute-verification.pdf) (MIRI, 2026) | Section 5.1.2, as Kubů summarises it: fill server memory with incompressible noise and challenge random samples, telling local from remote memory by response time. |
@@ -175,7 +179,7 @@ are a specified instantiation, not the practical Argon2 round function.
 ```sh
 cargo run --release -- dr-run 4096
 cargo run --release -- dr-solve 6 3
-# Explicit full-label allocation: 1 GiB plus overhead, not yet run here.
+# Explicit full-label allocation: 1 GiB plus overhead.
 cargo run --release -- dr-run 33554432
 ```
 
@@ -193,6 +197,85 @@ Six tests currently cover SHA-256 abc, baseline reconstruction, graph parent
 boundaries, full/greedy agreement, trace replay, tiny optimum and capacity limits.
 The large budgeted executor, published parallel attack, compression/offload,
 timeouts, independent sampler oracle, complete SHA vectors, reproducibility
-capture, repetitions and 1 GiB run remain pending. The existing `audit` command
+capture, repetitions remain pending. The existing `audit` command
 still runs the weak baseline. No physical occupancy or bandwidth lower bound
 is claimed from these runs.
+
+## Measured 1 GiB DRSample experiment
+
+Local host-RAM measurements, three distinct deterministic seeds per policy,
+33,554,432 nodes and 32-byte labels. All six workers exited 0. Each paired
+final label matched. These are execution measurements, not an occupancy bound.
+
+| Policy | n | Peak RSS range (KiB) | Elapsed range (s) |
+|---|---:|---:|---:|
+| Honest full retention | 3 | 1,050,092–1,050,336 | 41.16–41.25 |
+| Sequential last-use greedy | 3 | 516,468–516,648 | 72.64–76.21 |
+
+GNU time peak RSS includes resident metadata, allocator storage, stack and
+runtime; 1 KiB = 1,024 bytes. It excludes nonresident allocations. This is not
+a separate attribution of allocator overhead. The greedy live-label peak was
+50,711,840–50,755,008 bytes, its index array allocation was 268,435,456 bytes,
+and its peak hash-table entry capacity was 3,670,016. Entry capacity excludes
+implementation-specific control bytes and allocator bookkeeping. Observed total
+RSS is substantially larger than live-label bytes alone.
+
+Elapsed intervals cover process startup through worker exit, including graph
+sampling and evaluation; compilation and correctness comparisons are outside.
+Workers ran sequentially. GNU time also captured CPU times and page faults.
+The runner sampled selected /proc memory counters every 100 ms; samples are
+not used as an exact peak measurement. No cgroup memory limits were readable
+at the standard cgroup-root paths. No firmware or accelerator libraries were
+queried: this is a CPU/RAM experiment, not an accelerator measurement.
+
+Reproduce with:
+
+```sh
+cargo test
+cargo build --release
+python3 scripts/measure.py
+```
+
+The runner currently discovers GNU time and rustc from the local Nix store.
+The first smoke-run attempt exited 1 because rustc was absent from PATH; its
+last error was `FileNotFoundError: [Errno 2] No such file or directory: rustc`.
+After resolving the compiler path, the smoke test and all full trials passed.
+
+Measured base commit: `25c50a0ce932629b70dbeb0e3d28c284fe27cc71`; working tree was modified.
+`results/memory/source-hashes.json` identifies measured source and binary.
+Raw artifacts stay ignored under `results/memory/`; deterministic seeds, exact
+worker commands, statuses, stderr tails and GNU time outputs are in runs.json.
+The metadata records compiler, kernel, CPU and RAM without machine identity.
+
+Environment: {"rustc": "rustc 1.95.0 (59807616e 2026-04-14)", "kernel": "6.18.57", "cpu": "AMD Ryzen 5 7535HS with Radeon Graphics", "ram": "MemTotal:       15660052 kB"}
+
+Artifact SHA-256 hashes (regenerate with the commands above):
+
+- `0-dr-greedy-worker.samples.json`: `0ad8ec51f73014bc53ffd9a5b7463d226d5fee92f645e3cd4acbc3b4319ab093`
+- `0-dr-greedy-worker.stderr`: `18ddd02cfbb523c502fe4a53a62742cf4d64180fad236154f468395535123d4f`
+- `0-dr-greedy-worker.stdout`: `acf8704acd9b080af5e888cf24b3d9b4b3f28fa673d33540b1b7ffdf19d6ab3e`
+- `0-dr-greedy-worker.time`: `71f0fb4254d85e874dc23d4491bf7df87ba5813914bf9591d358d7e1efd7246a`
+- `0-dr-worker.samples.json`: `7865d807cae7fac491e7d0dc9b5ccd928cf029649d460fa358a3ea79c7deafb7`
+- `0-dr-worker.stderr`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+- `0-dr-worker.stdout`: `acf8704acd9b080af5e888cf24b3d9b4b3f28fa673d33540b1b7ffdf19d6ab3e`
+- `0-dr-worker.time`: `a0ffdfd679e518219271dcda9a9b6e3ad3f0416fbcffda2368711bcd6f347f05`
+- `1-dr-greedy-worker.samples.json`: `4f3a55f89f0fdc5856e2d20d8ec6247ae0060d51e2ae7a5d7f7737db4dfb339c`
+- `1-dr-greedy-worker.stderr`: `fe8d21e23c0f344484115b0ccb4ccc0c833549d077660f9a093b1cf3d7faa7ff`
+- `1-dr-greedy-worker.stdout`: `2968da1653e3b8978d10d0fe5f89ff7d8226db6b4f1b82289323059af023ccc0`
+- `1-dr-greedy-worker.time`: `765b3a39e3339508bf3f3e51bd209c4c5cd7a6ec21039f6e1a62651394598810`
+- `1-dr-worker.samples.json`: `9d7bdd6335246d011edab02904a5b218f184fe24ba854118a904accdd68b065d`
+- `1-dr-worker.stderr`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+- `1-dr-worker.stdout`: `2968da1653e3b8978d10d0fe5f89ff7d8226db6b4f1b82289323059af023ccc0`
+- `1-dr-worker.time`: `8838ba2f4a3985e1e9fc5afd713062179f91259d54cdad933cb3216904525dd4`
+- `2-dr-greedy-worker.samples.json`: `e57163f645b81422f5a2fa30fcb06527566021021dad56e71260573abfe7375c`
+- `2-dr-greedy-worker.stderr`: `aefe1f9426353bd421c1aecfc011480b0f4fb4637a95b58dcc2f7e9d07ce3339`
+- `2-dr-greedy-worker.stdout`: `923de00303db6da80cb8c7a0f3a78a6a41fbf65d60796ae8f01c96980eeef702`
+- `2-dr-greedy-worker.time`: `c25b8baf137dc21da4b454f0668576e5ae0cfd201b04cf876402e76ef6c68fea`
+- `2-dr-worker.samples.json`: `69476e5bb3940e98bb12e493a8aacc9394ea9cab6f3734d8d2e5da16f940f691`
+- `2-dr-worker.stderr`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+- `2-dr-worker.stdout`: `923de00303db6da80cb8c7a0f3a78a6a41fbf65d60796ae8f01c96980eeef702`
+- `2-dr-worker.time`: `ad77f9558d16bdf202dcaf408152750f7b290686e6b2a0f5c09a5f313505d7dc`
+- `limits.json`: `ee9fdac6985ec9b0e3864abea078143c222e72d315157ec50b6a246b2f6e8b82`
+- `metadata.json`: `2e396a063aa4242ffa8636bd4efb41ae682f1f779859ea77da34f6fd91bbc7ef`
+- `runs.json`: `36ea65538b8b7d2a5a54b49c603f2cec1d88aae8ef212d9261d36a4013048995`
+- `source-hashes.json`: `313c46b13753886009bf0f90af565839a252b9095a1c246f1d2c109f794f364a`

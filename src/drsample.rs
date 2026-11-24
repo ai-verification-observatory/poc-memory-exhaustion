@@ -22,8 +22,9 @@ pub fn greedy(seed:&Hash,n:usize)->Result<(Hash,usize),String>{
  if n<2{return Err("nodes must be >=2".into())}
  let mut last=Vec::new();last.try_reserve_exact(n).map_err(|e|e.to_string())?;last.resize(n,0usize);
  for i in 0..n{for p in parents(seed,i){last[p]=i}}
- let mut live=HashMap::new();let mut peak=0;
- for i in 0..n{let p=parents(seed,i);let values:Vec<_>=p.iter().map(|j|live[j]).collect();let value=label(seed,i,&values);live.try_reserve(1).map_err(|e|e.to_string())?;live.insert(i,value);peak=peak.max(live.len());for j in p{if last[j]==i{live.remove(&j);}}}
+ let mut live=HashMap::new();let mut peak=0;let mut peak_capacity=0;
+ for i in 0..n{let p=parents(seed,i);let values:Vec<_>=p.iter().map(|j|live[j]).collect();let value=label(seed,i,&values);live.try_reserve(1).map_err(|e|e.to_string())?;live.insert(i,value);peak=peak.max(live.len());peak_capacity=peak_capacity.max(live.capacity());for j in p{if last[j]==i{live.remove(&j);}}}
+ eprintln!("hashmap_peak_entry_capacity={peak_capacity} metadata_allocation_bytes={}",last.capacity()*std::mem::size_of::<usize>());
  Ok((live[&(n-1)],peak))
 }
 #[test]fn boundaries(){for s in 0..8{let seed=[s;32];assert!(parents(&seed,0).is_empty());assert_eq!(parents(&seed,1),vec![0]);for i in 2..1024{let p=parents(&seed,i);assert_eq!(p[0],i-1);assert!(p[1]<i-1)}}}

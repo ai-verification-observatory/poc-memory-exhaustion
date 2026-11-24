@@ -34,6 +34,7 @@ Build: `cargo build --release`. Test: `cargo test`. Small run: `cargo run --rele
 | `CLAUDE.md` | imports this file |
 | `src/` | Rust baseline protocol and recomputation attack |
 | `configs/` | small and 1 GiB experiment parameters |
+| `scripts/` | local process-memory experiment runner |
 
 Add a row for each top-level folder you create.
 

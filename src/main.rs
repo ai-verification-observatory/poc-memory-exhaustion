@@ -23,9 +23,9 @@ fn random()->Hash{use std::io::Read;let mut b=[0;32];fs::File::open("/dev/urando
 fn dr_cli(args:&[String])->Result<(),String>{
  let mode=&args[1];
  let n=args.get(2).ok_or("missing node count")?.parse::<usize>().map_err(|e|e.to_string())?;
- if mode=="dr-worker"{
+ if mode=="dr-worker" || mode=="dr-greedy-worker"{
   let raw=args.get(3).ok_or("seed missing")?;if raw.len()!=64{return Err("seed length".into())}let mut seed=[0;32];for i in 0..32{seed[i]=u8::from_str_radix(&raw[i*2..i*2+2],16).map_err(|e|e.to_string())?}
-  let h=drsample::full(&seed,n)?;println!("{}",hex(&h));return Ok(())
+  let h=if mode=="dr-greedy-worker"{let(h,peak)=drsample::greedy(&seed,n)?;eprintln!("peak_live_label_bytes={} metadata_requested_bytes={}",peak*32,n*std::mem::size_of::<usize>());h}else{drsample::full(&seed,n)?};println!("{}",hex(&h));return Ok(())
  }
  if mode=="dr-solve"{
   if n>12{return Err("exact solver supports at most 12 nodes".into())}
